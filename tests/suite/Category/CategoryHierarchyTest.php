@@ -762,27 +762,80 @@ class CategoryHierarchyTest extends CategoryTestCase
           5 => str_repeat($seperator, 1).'Child 3',
           6 => str_repeat($seperator, 0).'Root 2',
         ];
+      1 => str_repeat($seperator, 0).'Root 1',
+      2 => str_repeat($seperator, 1).'Child 1',
+      3 => str_repeat($seperator, 1).'Child 2',
+      4 => str_repeat($seperator, 2).'Child 2.1',
+      5 => str_repeat($seperator, 1).'Child 3',
+      6 => str_repeat($seperator, 0).'Root 2',
+    ];
 
         $this->assertArraysAreEqual($expected, $nestedList);
     }
 
-    public function testGetNestedListWithParent() {
-        $separator = ' ';
-        $parent = Category::find(2);
-        $nestedList = Category::getNestedList('name', 'id', $separator, $parent);
+    public function testGetCommonAncestor()
+    {
+        $ch1 = $this->categories('Child 1');
+        $ch11 = $ch1->children()->create(['name' => 'Child 1.1']);
+        $ch12 = $ch1->children()->create(['name' => 'Child 1.2']);
 
-        $expected = array(
-            2 => str_repeat($separator, 0). 'Child 1',
-        );
-        $this->assertArraysAreEqual($expected, $nestedList);
+        $r1 = $this->categories('Root 1');
+        $ch1 = $ch1->fresh();
+        $ch2 = $this->categories('Child 2');
+        $r2 = $this->categories('Root 2');
 
-        $nestedList = Category::getNestedList('name', 'id', $separator, $parent, false);
+        $this->assertEquals($r1, $r1->getCommonAncestor($ch1));
 
-        $expected = array(
-            2 => str_repeat($separator, 1). 'Child 1',
-        );
+        $this->assertEquals($r1, $ch1->getCommonAncestor($r1));
 
-        $this->assertArraysAreEqual($expected, $nestedList);
+        $this->assertEquals($r1, $ch1->getCommonAncestor($ch2));
+
+        $this->assertNull($ch1->getCommonAncestor($r2));
+
+        $this->assertNull($r1->getCommonAncestor($r2));
+
+        $this->assertEquals($ch1, $ch11->getCommonAncestor($ch12));
     }
 
+    public function testNodesOnPathAndSelf()
+    {
+        $ch1 = $this->categories('Child 1');
+        $ch11 = $ch1->children()->create(['name' => 'Child 1.1'])->fresh();
+        $ch12 = $ch1->children()->create(['name' => 'Child 1.2'])->fresh();
+
+        $r1 = $this->categories('Root 1');
+        $ch1 = $ch1->fresh();
+        $r2 = $this->categories('Root 2');
+
+        $this->assertEquals([$r1, $ch1], $r1->getNodesOnPathAndSelf($ch1)->all());
+        $this->assertEquals([$r1, $ch1], $ch1->getNodesOnPathAndSelf($r1)->all());
+
+        $this->assertEquals([$r1, $ch1, $ch12], $r1->getNodesOnPathAndSelf($ch12)->all());
+        $this->assertEquals([$r1, $ch1, $ch11], $r1->getNodesOnPathAndSelf($ch11)->all());
+
+        $this->assertEquals([$ch1, $ch11], $ch1->getNodesOnPathAndSelf($ch11)->all());
+        $this->assertEquals([], $r1->getNodesOnPathAndSelf($r2)->all());
+        $this->assertEquals([$ch1, $ch11, $ch12], $ch11->getNodesOnPathAndSelf($ch12)->all());
+    }
+
+    public function testNodesOnPath()
+    {
+        $ch1 = $this->categories('Child 1');
+        $ch11 = $ch1->children()->create(['name' => 'Child 1.1'])->fresh();
+        $ch12 = $ch1->children()->create(['name' => 'Child 1.2'])->fresh();
+
+        $r1 = $this->categories('Root 1');
+        $ch1 = $ch1->fresh();
+        $r2 = $this->categories('Root 2');
+
+        $this->assertEquals([$ch1], $r1->getNodesOnPath($ch1)->all());
+        $this->assertEquals([$r1], $ch1->getNodesOnPath($r1)->all());
+
+        $this->assertEquals([$ch1, $ch12], $r1->getNodesOnPath($ch12)->all());
+        $this->assertEquals([$ch1, $ch11], $r1->getNodesOnPath($ch11)->all());
+
+        $this->assertEquals([$ch11], $ch1->getNodesOnPath($ch11)->all());
+        $this->assertEquals([], $r1->getNodesOnPathAndSelf($r2)->all());
+        $this->assertEquals([$ch1, $ch12], $ch11->getNodesOnPath($ch12)->all());
+    }
 }
